@@ -6,6 +6,7 @@ Communicates via stdio (standard MCP transport).
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
 from fastmcp import FastMCP
@@ -32,7 +33,7 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-def build_or_update_graph_tool(
+async def build_or_update_graph_tool(
     full_rebuild: bool = False,
     repo_root: Optional[str] = None,
     base: str = "HEAD~1",
@@ -48,8 +49,14 @@ def build_or_update_graph_tool(
         repo_root: Repository root path. Auto-detected from current directory if omitted.
         base: Git ref to diff against for incremental updates. Default: HEAD~1.
     """
-    return build_or_update_graph(
-        full_rebuild=full_rebuild, repo_root=repo_root, base=base
+    # Run the blocking build operation in a thread pool to avoid blocking the event loop.
+    # Note: We intentionally do NOT use ctx.report_progress() here due to a known
+    # deadlock bug in the MCP Python SDK on stdio transport (issue #1141).
+    return await asyncio.to_thread(
+        build_or_update_graph,
+        full_rebuild=full_rebuild,
+        repo_root=repo_root,
+        base=base,
     )
 
 
